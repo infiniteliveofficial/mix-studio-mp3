@@ -230,7 +230,15 @@
     </div>
 
     <div class="vp-section">
-      <h3>2. Style du visualiseur</h3>
+      <h3>2. Aperçu — glisse l'effet où tu veux sur l'image</h3>
+      <div class="previewWrap" id="previewWrap">
+        <canvas id="previewCanvas" width="1280" height="720"></canvas>
+      </div>
+      <p class="previewNote">▶ Lance la lecture du mix (lecteur audio plus haut) : le visualiseur bouge en direct et tu vérifies tout d'un coup avec le curseur audio. Tous les réglages ci-dessous se voient immédiatement ici, sans avoir à remonter.</p>
+    </div>
+
+    <div class="vp-section">
+      <h3>3. Style du visualiseur</h3>
       <div class="vp-row styleBtns" id="styleBtns">
         <button data-style="classic">Classique</button>
         <button data-style="thin" class="sel">Barres fines</button>
@@ -243,7 +251,7 @@
     </div>
 
     <div class="vp-section">
-      <h3>3. Couleur du visualiseur</h3>
+      <h3>4. Couleur du visualiseur</h3>
       <div class="vp-row" id="colorRow">
         <button class="swatch sel" data-color="#FFFFFF" style="background:#FFFFFF" title="Blanc"></button>
         <button class="swatch" data-color="#E8B84B" style="background:#E8B84B" title="Or"></button>
@@ -255,7 +263,7 @@
     </div>
 
     <div class="vp-section">
-      <h3>4. Effet d'ambiance ✨</h3>
+      <h3>5. Effets d'ambiance ✨ (tu peux en cocher plusieurs)</h3>
       <div class="vp-row ambBtns" id="ambBtns">
         <button data-amb="none" class="sel">Aucun</button>
         <button data-amb="snow">Neige</button>
@@ -276,19 +284,11 @@
     </div>
 
     <div class="vp-section">
-      <h3>5. Réglages du visualiseur</h3>
+      <h3>6. Réglages du visualiseur</h3>
       <div class="vp-row" style="gap:20px">
         <label>Taille <input type="range" id="sizeRange" min="20" max="100" value="60"> <span class="val" id="sizeVal">60%</span></label>
         <label>Sensibilité <input type="range" id="gainRange" min="50" max="250" value="120"> <span class="val" id="gainVal">120%</span></label>
       </div>
-    </div>
-
-    <div class="vp-section">
-      <h3>6. Aperçu — glisse l'effet où tu veux sur l'image</h3>
-      <div class="previewWrap" id="previewWrap">
-        <canvas id="previewCanvas" width="1280" height="720"></canvas>
-      </div>
-      <p class="previewNote">▶ Lance la lecture du mix (lecteur audio plus haut) : le visualiseur bouge en direct et tu vérifies tout d'un coup avec le curseur audio.</p>
     </div>
 
     <div class="vp-section">
@@ -1719,11 +1719,21 @@ $('colorRow').addEventListener('click', function(e){
   b.classList.add('sel');
   needsRedraw = true;
 });
+vizCfg.ambs = [];
 $('ambBtns').addEventListener('click', function(e){
   var b = e.target.closest('button'); if(!b) return;
-  vizCfg.amb = b.dataset.amb;
-  $('ambBtns').querySelectorAll('button').forEach(function(x){ x.classList.remove('sel'); });
-  b.classList.add('sel');
+  var val = b.dataset.amb;
+  if(val === 'none'){
+    vizCfg.ambs = [];
+    $('ambBtns').querySelectorAll('button').forEach(function(x){ x.classList.remove('sel'); });
+    b.classList.add('sel');
+  } else {
+    $('ambBtns').querySelector('[data-amb="none"]').classList.remove('sel');
+    var i = vizCfg.ambs.indexOf(val);
+    if(i>=0){ vizCfg.ambs.splice(i,1); b.classList.remove('sel'); }
+    else { vizCfg.ambs.push(val); b.classList.add('sel'); }
+    if(!vizCfg.ambs.length) $('ambBtns').querySelector('[data-amb="none"]').classList.add('sel');
+  }
   needsRedraw = true;
 });
 $('ambRange').addEventListener('input', function(){
@@ -1903,11 +1913,17 @@ function drawViz(ctx, W, H, bands, cfg, tSec){
 }
 
 function drawAmbient(ctx, W, H, cfg, tSec){
-  if(cfg.amb === 'none') return;
+  var list = cfg.ambs && cfg.ambs.length ? cfg.ambs : (cfg.amb && cfg.amb!=='none' ? [cfg.amb] : []);
+  list.forEach(function(one){
+    drawOneAmbient(ctx, W, H, one, cfg, tSec);
+  });
+}
+
+function drawOneAmbient(ctx, W, H, ambType, cfg, tSec){
   var inten = cfg.ambIntensity/100;
   var sf = (cfg.ambSize||100)/100;
   ctx.save();
-  if(cfg.amb === 'snow'){
+  if(ambType === 'snow'){
     var N1 = Math.floor(90*inten)+10;
     ctx.fillStyle = '#FFFFFF';
     for(var i=0;i<N1;i++){
@@ -1919,7 +1935,7 @@ function drawAmbient(ctx, W, H, cfg, tSec){
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
     }
   }
-  else if(cfg.amb === 'stars'){
+  else if(ambType === 'stars'){
     var N2 = Math.floor(70*inten)+8;
     ctx.fillStyle = '#FFF8E0';
     for(var i2=0;i2<N2;i2++){
@@ -1935,20 +1951,21 @@ function drawAmbient(ctx, W, H, cfg, tSec){
       }
     }
   }
-  else if(cfg.amb === 'rise'){
+  else if(ambType === 'rise'){
     var N3 = Math.floor(45*inten)+6;
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = Math.max(1, W*0.0009);
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillStyle = 'rgba(210,240,255,0.55)';
+    ctx.lineWidth = Math.max(1.5, W*0.0013);
     for(var i3=0;i3<N3;i3++){
       var sp3 = 26 + hash1(i3)*46;
       var y3 = H - (((tSec*sp3) + hash1(i3+400)*H*2) % (H+30)) + 15;
       var x3 = hash1(i3+800)*W + Math.sin(tSec*1.1 + i3*1.7)*W*0.012;
-      var r3 = (1.5 + hash1(i3+60)*3.5)*(W*0.0016)*sf;
-      ctx.globalAlpha = 0.25 + hash1(i3+90)*0.45;
-      ctx.beginPath(); ctx.arc(x3, y3, r3, 0, 6.2832); ctx.stroke();
+      var r3 = (2.4 + hash1(i3+60)*5)*(W*0.0016)*sf;
+      ctx.globalAlpha = 0.65 + hash1(i3+90)*0.35;
+      ctx.beginPath(); ctx.arc(x3, y3, r3, 0, 6.2832); ctx.fill(); ctx.stroke();
     }
   }
-  else if(cfg.amb === 'dust'){
+  else if(ambType === 'dust'){
     var N4 = Math.floor(80*inten)+10;
     ctx.fillStyle = '#E8B84B';
     for(var i4=0;i4<N4;i4++){
@@ -1960,7 +1977,7 @@ function drawAmbient(ctx, W, H, cfg, tSec){
       ctx.beginPath(); ctx.arc(x4, y4, r4, 0, 6.2832); ctx.fill();
     }
   }
-  else if(cfg.amb === 'sparks'){
+  else if(ambType === 'sparks'){
     var N5 = Math.floor(26*inten)+4;
     ctx.fillStyle = '#FFFDF2';
     for(var i5=0;i5<N5;i5++){
@@ -1977,7 +1994,7 @@ function drawAmbient(ctx, W, H, cfg, tSec){
       ctx.beginPath(); ctx.arc(x5, y5, r5*0.85, 0, 6.2832); ctx.fill();
     }
   }
-  else if(cfg.amb === 'goldrain'){
+  else if(ambType === 'goldrain'){
     var N6 = Math.floor(70*inten)+8;
     ctx.strokeStyle = '#F2CE6B';
     ctx.lineWidth = Math.max(1, W*0.0011)*sf;
@@ -1993,7 +2010,7 @@ function drawAmbient(ctx, W, H, cfg, tSec){
       ctx.stroke();
     }
   }
-  else if(cfg.amb === 'fireflies'){
+  else if(ambType === 'fireflies'){
     var N7 = Math.floor(28*inten)+4;
     for(var i7=0;i7<N7;i7++){
       var x7 = hash1(i7+15)*W + Math.sin(tSec*(0.4+hash1(i7)*0.5) + i7*2.1)*W*0.07;
@@ -2007,24 +2024,25 @@ function drawAmbient(ctx, W, H, cfg, tSec){
       ctx.beginPath(); ctx.arc(x7, y7, r7, 0, 6.2832); ctx.fill();
     }
   }
-  else if(cfg.amb === 'bokeh'){
-    var N8 = Math.floor(14*inten)+3;
+  else if(ambType === 'bokeh'){
+    var N8 = Math.floor(16*inten)+4;
     for(var i8=0;i8<N8;i8++){
       var x8 = (hash1(i8+21)*W + Math.sin(tSec*(0.12+hash1(i8)*0.15) + i8)*W*0.05) % W; if(x8<0) x8+=W;
       var y8 = (hash1(i8+330)*H + Math.cos(tSec*(0.1+hash1(i8+4)*0.12) + i8*2)*H*0.04) % H;
-      var r8 = (H*0.03 + hash1(i8+80)*H*0.06)*sf;
-      var warm = hash1(i8+9) > 0.5;
+      var r8 = (H*0.05 + hash1(i8+80)*H*0.09)*sf;
+      var warm = hash1(i8+9) > 0.45;
       var g8 = ctx.createRadialGradient(x8, y8, 0, x8, y8, r8);
-      var col = warm ? '242,206,107' : '255,255,255';
-      g8.addColorStop(0, 'rgba('+col+',0.20)');
-      g8.addColorStop(0.75, 'rgba('+col+',0.10)');
+      var col = warm ? '250,214,120' : '255,255,255';
+      g8.addColorStop(0, 'rgba('+col+',0.85)');
+      g8.addColorStop(0.4, 'rgba('+col+',0.45)');
+      g8.addColorStop(0.75, 'rgba('+col+',0.18)');
       g8.addColorStop(1, 'rgba('+col+',0)');
-      ctx.globalAlpha = 0.5 + 0.5*Math.abs(Math.sin(tSec*(0.3+hash1(i8+2)*0.4)+i8));
+      ctx.globalAlpha = 0.7 + 0.3*Math.abs(Math.sin(tSec*(0.3+hash1(i8+2)*0.4)+i8));
       ctx.fillStyle = g8;
       ctx.beginPath(); ctx.arc(x8, y8, r8, 0, 6.2832); ctx.fill();
     }
   }
-  else if(cfg.amb === 'petals'){
+  else if(ambType === 'petals'){
     var N9 = Math.floor(32*inten)+5;
     ctx.fillStyle = '#FFD9E8';
     for(var i9=0;i9<N9;i9++){
@@ -2042,7 +2060,7 @@ function drawAmbient(ctx, W, H, cfg, tSec){
       ctx.restore();
     }
   }
-  else if(cfg.amb === 'comets'){
+  else if(ambType === 'comets'){
     var N10 = Math.max(2, Math.floor(7*inten));
     for(var i10=0;i10<N10;i10++){
       var period = 5 + hash1(i10)*7;
@@ -2144,6 +2162,9 @@ function probeVideoConfig(W, H, FPS, fast){
 }
 
 $('exportBtn').onclick = function(){
+  vStatus('⚠️ Export local désactivé pour protéger ton PC (il a causé un plantage). La version rapide via Railway arrive — patiente un instant.');
+  return;
+  // eslint-disable-next-line no-unreachable
   if(exporting) return;
   if(!resultBlob){ vStatus('Fais d\'abord ton mix audio.'); return; }
   if(typeof VideoEncoder === 'undefined' || typeof OffscreenCanvas === 'undefined'){
