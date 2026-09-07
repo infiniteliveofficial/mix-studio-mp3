@@ -1507,10 +1507,12 @@ $('cancelMixBtn').onclick = function(){
 };
 
 $('cancelVidBtn').onclick = function(){
-  cancelExportWorkers();
-  killWorker();
+  if(exp){
+    exp.cancelled = true;
+    if(exp.poller) clearTimeout(exp.poller);
+  }
   exp = null;
-  vStatus('Export annulé.');
+  vStatus('Export annulé côté navigateur (le job continue peut-être encore un instant sur le serveur).');
   $('vProgressBar').style.display = 'none';
   $('vEncoderLine').textContent = '';
   resetBusy();
@@ -2161,73 +2163,93 @@ function probeVideoConfig(W, H, FPS, fast){
   return chain;
 }
 
+var RAILWAY_VIDEO_URL = 'https://mix-video-bot-production.up.railway.app';
+
 $('exportBtn').onclick = function(){
-  vStatus('⚠️ Export local désactivé pour protéger ton PC (il a causé un plantage). La version rapide via Railway arrive — patiente un instant.');
-  return;
-  // eslint-disable-next-line no-unreachable
   if(exporting) return;
   if(!resultBlob){ vStatus('Fais d\'abord ton mix audio.'); return; }
-  if(typeof VideoEncoder === 'undefined' || typeof OffscreenCanvas === 'undefined'){
-    vStatus('Ton navigateur ne supporte pas l\'export vidéo (utilise Chrome ou Edge récent)');
-    return;
-  }
+
   exporting = true;
   $('exportBtn').disabled = true;
   $('cancelVidBtn').style.display = 'inline-block';
   $('videoOut').style.display = 'none';
-  $('vEncoderLine').textContent = '';
+  $('vEncoderLine').textContent = 'Envoi vers le serveur Railway…';
   vProgress(0);
-  vStatus('Préparation de l\'audio…');
+  vStatus('Envoi de l\'audio et de l\'image…');
 
   var is1080 = document.querySelector('input[name="resOpt"]:checked').value === '1080';
-  var W = is1080 ? 1920 : 1280;
-  var H = is1080 ? 1080 : 720;
   var FPS = parseInt(document.querySelector('input[name="fpsOpt"]:checked').value, 10);
-  var fast = $('fastChk').checked;
 
-  resultBlob.arrayBuffer().then(function(ab){
-    return getCtx().decodeAudioData(ab);
-  }).then(function(abuf){
-    var total = abuf.length;
-    var chL = new Float32Array(total), chR = new Float32Array(total);
-    chL.set(abuf.getChannelData(0));
-    if(abuf.numberOfChannels>1) chR.set(abuf.getChannelData(1)); else chR.set(abuf.getChannelData(0));
-    var mono = new Float32Array(total);
-    for(var i=0;i<total;i++) mono[i] = (chL[i]+chR[i])*0.5;
+  var cfg = {
+    style: vizCfg.style,
+    color: vizCfg.color,
+    x: Math.round(vizCfg.x * 100),
+    y: Math.round(vizCfg.y * 100),
+    size: vizCfg.size,
+    gain: vizCfg.gain,
+    resolution: is1080 ? '1080' : '720',
+    fps: FPS
+  };
 
-    return probeVideoConfig(W, H, FPS, fast).then(function(pick){
-      if(!pick) throw new Error('Encodeur vidéo H.264 non disponible');
-      var cores = navigator.hardwareConcurrency || 4;
-      var K = Math.max(1, Math.min(4, cores-1));
-      var duration = total/abuf.sampleRate;
-      var totalFrames = Math.ceil(duration*FPS);
-      K = Math.min(K, Math.max(1, Math.floor(totalFrames/FPS)));
+  var fd = new FormData();
+  fd.append('audio', resultBlob, resultFormat === 'mp3' ? 'audio.mp3' : 'audio.m4a');
+  if(userImgFile) fd.append('image', userImgFile, userImgFile.name || 'image.jpg');
+  fd.append('config', JSON.stringify(cfg));
 
-      $('vEncoderLine').textContent = (pick.hw ? 'Encodeur matériel ⚡' : 'Encodeur logiciel') + ' · ' + K + ' cœurs en parallèle';
+  exp = { cancelled:false, poller:null };
 
-      exp = {
-        W:W, H:H, FPS:FPS, fast:fast, rate:abuf.sampleRate,
-        mono:mono, vConfig:pick.cfg,
-        totalFrames: totalFrames, K:K,
-        segDone: {}, segChunks: {}, segMeta: null,
-        nextForward: 0, forwarded: 0,
-        t0: Date.now(), is1080: is1080
-      };
-
-      vStatus('Encodage de l\'audio…');
-      getWorker().postMessage({
-        type:'vmux-start',
-        W:W, H:H, rate:abuf.sampleRate,
-        chL: chL, chR: chR
-      }, [chL.buffer, chR.buffer]);
+  fetch(RAILWAY_VIDEO_URL + '/export', { method:'POST', body: fd })
+    .then(function(r){
+      if(!r.ok) throw new Error('Le serveur a refusé la requête (code ' + r.status + ')');
+      return r.json();
+    })
+    .then(function(data){
+      if(!data.job_id) throw new Error('Réponse du serveur invalide');
+      if(exp && exp.cancelled) return;
+      vStatus('Création de la vidéo sur le serveur…');
+      pollRailwayJob(data.job_id);
+    })
+    .catch(function(err){
+      console.error(err);
+      vStatus('Erreur : ' + (err && err.message ? err.message : err) + ' — vérifie que le service Railway est bien démarré.');
+      exp = null;
+      resetBusy();
     });
-  }).catch(function(err){
-    console.error(err);
-    vStatus('Erreur : ' + (err && err.message ? err.message : err));
-    exp = null;
-    resetBusy();
-  });
 };
+
+function pollRailwayJob(jobId){
+  if(!exp || exp.cancelled) return;
+  fetch(RAILWAY_VIDEO_URL + '/status/' + jobId)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!exp || exp.cancelled) return;
+      if(data.status === 'not_found'){
+        vStatus('Job introuvable sur le serveur (a peut-être expiré).');
+        exp = null; resetBusy();
+        return;
+      }
+      if(data.status === 'error'){
+        vStatus('Erreur côté serveur : ' + (data.error || 'inconnue'));
+        exp = null; resetBusy();
+        return;
+      }
+      if(data.status === 'done'){
+        vProgress(1);
+        vStatus('Vidéo prête ✔');
+        var fullUrl = RAILWAY_VIDEO_URL + data.download_url;
+        showVideo(fullUrl, false);
+        return;
+      }
+      var p = data.progress || 0;
+      vProgress(p * 0.98);
+      vStatus('Création de la vidéo sur le serveur… ' + Math.round(p*100) + '% (tu peux fermer cette page si besoin, le job continue sur Railway)');
+      exp.poller = setTimeout(function(){ pollRailwayJob(jobId); }, 2000);
+    })
+    .catch(function(err){
+      if(!exp || exp.cancelled) return;
+      exp.poller = setTimeout(function(){ pollRailwayJob(jobId); }, 3000);
+    });
+}
 
 function startSegments(){
   var E = exp;
@@ -2328,12 +2350,17 @@ function forwardNextSegment(){
   E.forwarding = false;
 }
 
-function showVideo(blob, isOpus){
-  cancelExportWorkers();
-  if(videoUrl) URL.revokeObjectURL(videoUrl);
-  videoUrl = URL.createObjectURL(blob);
+function showVideo(urlOrBlob, isOpus){
+  var is1080 = document.querySelector('input[name="resOpt"]:checked').value === '1080';
+  var finalUrl;
+  if(typeof urlOrBlob === 'string'){
+    finalUrl = urlOrBlob;
+  } else {
+    if(videoUrl) URL.revokeObjectURL(videoUrl);
+    finalUrl = URL.createObjectURL(urlOrBlob);
+  }
+  videoUrl = finalUrl;
   $('resultVideo').src = videoUrl;
-  var is1080 = exp ? exp.is1080 : (document.querySelector('input[name="resOpt"]:checked').value === '1080');
   exp = null;
   $('downloadVideoBtn').onclick = function(){
     var a = document.createElement('a');
