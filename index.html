@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js"></script>
 <style>
   :root{
     --bg:#0D1210;
@@ -31,7 +32,7 @@
   .stripe{display:flex;height:5px;width:150px;margin-top:10px;border-radius:3px;overflow:hidden}
   .stripe span{flex:1}
   .stripe .g{background:var(--green)}.stripe .y{background:var(--gold)}.stripe .r{background:var(--red)}
-  header p{margin-top:10px;color:var(--muted);font-size:15px;max-width:60ch}
+  header p{margin-top:10px;color:var(--muted);font-size:15px;max-width:62ch}
 
   .dropzone{
     border:2px dashed var(--line);border-radius:var(--radius);
@@ -55,6 +56,7 @@
   button.primary{background:var(--gold);border-color:var(--gold);color:#1A1509;font-size:16px;padding:12px 26px}
   button.primary:hover{background:#F2C55C}
   button.danger:hover{border-color:var(--red);color:var(--red)}
+  button.sel{border-color:var(--gold);background:rgba(232,184,75,.12);color:var(--gold)}
 
   .track{
     background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
@@ -70,18 +72,19 @@
   .t-btns button{padding:5px 9px;font-size:13px;border-radius:8px}
 
   .wavebox{position:relative;height:74px;border-radius:8px;overflow:hidden;background:#0A0F0C;touch-action:none}
-  .wavebox canvas{display:block;width:100%;height:100%}
+  .wavebox canvas{display:block;width:100%;height:100%;cursor:pointer}
   .shade{position:absolute;top:0;bottom:0;background:rgba(6,9,7,.72);pointer-events:none}
   .shade.left{left:0}.shade.right{right:0}
   .handle{
     position:absolute;top:0;bottom:0;width:14px;margin-left:-7px;cursor:ew-resize;
-    display:flex;align-items:center;justify-content:center;touch-action:none;
+    display:flex;align-items:center;justify-content:center;touch-action:none;z-index:3;
   }
   .handle::before{content:'';width:4px;height:100%;background:var(--gold);border-radius:2px}
   .handle::after{
     content:'';position:absolute;width:12px;height:26px;background:var(--gold);
     border-radius:5px;
   }
+  .playhead{position:absolute;top:0;bottom:0;width:2px;background:#FFFFFF;box-shadow:0 0 8px rgba(232,184,75,.95);display:none;pointer-events:none;z-index:2}
   .t-times{display:flex;justify-content:space-between;color:var(--muted);font-size:12.5px;margin-top:7px}
   .t-times b{color:var(--gold);font-weight:600}
 
@@ -99,7 +102,7 @@
   .mergebar{display:flex;flex-direction:column;gap:12px;align-items:center;margin:8px 0 26px}
   .progress{width:100%;max-width:520px;height:10px;background:var(--panel2);border-radius:5px;overflow:hidden;display:none}
   .progress i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--gold));transition:width .2s}
-  .status{color:var(--muted);font-size:14px;min-height:20px}
+  .status{color:var(--muted);font-size:14px;min-height:20px;text-align:center}
 
   .result{
     display:none;background:var(--panel);border:1px solid var(--gold);border-radius:var(--radius);
@@ -116,6 +119,42 @@
   }
   .hint{color:var(--muted);font-size:13px;margin-top:8px}
   .empty{color:var(--muted);text-align:center;padding:26px 0;font-size:14.5px}
+
+  /* ---- Panneau vidéo ---- */
+  .videoPanel{
+    display:none;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;margin-bottom:30px;
+  }
+  .videoPanel h2{font-size:19px;margin-bottom:6px}
+  .videoPanel .sub{color:var(--muted);font-size:14px;margin-bottom:16px}
+  .vp-section{margin-bottom:16px}
+  .vp-section h3{font-size:14.5px;color:var(--gold);margin-bottom:8px}
+  .vp-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .imgzone{
+    border:2px dashed var(--line);border-radius:10px;background:var(--panel2);
+    padding:14px;text-align:center;cursor:pointer;font-size:14px;color:var(--muted);
+  }
+  .imgzone.ok{border-color:var(--green);color:var(--text)}
+  .imgzone input{display:none}
+  .styleBtns button{font-size:13.5px}
+  .swatch{
+    width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;
+  }
+  .swatch.sel{border-color:#fff;box-shadow:0 0 0 2px var(--gold)}
+  .vp-row label{font-size:14px;display:flex;align-items:center;gap:8px}
+  .vp-row input[type=range]{width:150px;accent-color:var(--gold)}
+  .vp-row .val{color:var(--gold);font-weight:600;font-size:13.5px;min-width:44px}
+
+  .previewWrap{position:relative;border-radius:10px;overflow:hidden;background:#000;touch-action:none}
+  .previewWrap canvas{display:block;width:100%;cursor:move}
+  .previewNote{color:var(--muted);font-size:13px;margin-top:8px}
+
+  .radioRow{display:flex;gap:14px}
+  .radioRow label{display:flex;align-items:center;gap:6px;font-size:14.5px;cursor:pointer}
+  .radioRow input{accent-color:var(--gold);width:16px;height:16px}
+
+  .videoOut{display:none;margin-top:16px}
+  .videoOut video{width:100%;border-radius:10px;margin-bottom:12px;background:#000}
 </style>
 </head>
 <body>
@@ -124,7 +163,7 @@
   <header>
     <h1>Mix Studio</h1>
     <div class="stripe"><span class="g"></span><span class="y"></span><span class="r"></span></div>
-    <p>Assemble tes MP3 avec crossfade DJ, recadre le début et la fin de chaque son, et récupère les timecodes chapitres prêts pour YouTube. Tout se passe dans ton navigateur — tes fichiers ne sont jamais envoyés en ligne.</p>
+    <p>Assemble tes MP3 avec crossfade DJ, recadre chaque son, récupère les timecodes YouTube, puis crée ta vidéo MP4 avec image et visualiseur animé. Tout se passe dans ton navigateur — tes fichiers ne sont jamais envoyés en ligne.</p>
   </header>
 
   <div class="dropzone" id="dropzone">
@@ -138,7 +177,7 @@
     <button id="clearBtn" class="danger">Tout effacer</button>
   </div>
 
-  <div id="trackList"><div class="empty">Les sons ajoutés apparaîtront ici. Glisse-les pour changer l'ordre, tire les poignées dorées pour recadrer.</div></div>
+  <div id="trackList"><div class="empty">Les sons ajoutés apparaîtront ici. Glisse-les pour changer l'ordre, tire les poignées dorées pour recadrer, clique sur l'onde pour écouter à un endroit précis.</div></div>
 
   <div class="settings">
     <label>Crossfade entre les sons
@@ -168,6 +207,78 @@
     <p class="hint">Colle ces lignes dans ta description YouTube : les chapitres apparaîtront automatiquement. Les temps tiennent compte de tes recadrages et du crossfade.</p>
   </div>
 
+  <div class="videoPanel" id="videoPanel">
+    <h2>Créer la vidéo MP4</h2>
+    <p class="sub">Image fixe 16:9 + visualiseur animé qui bouge avec ton mix. Lance la lecture du mix ci-dessus pour voir l'effet vivre dans l'aperçu.</p>
+
+    <div class="vp-section">
+      <h3>1. Ton image (16:9 conseillé)</h3>
+      <div class="imgzone" id="imgZone">
+        Clique ici ou glisse ton image (JPG/PNG)
+        <input type="file" id="imgInput" accept="image/*">
+      </div>
+    </div>
+
+    <div class="vp-section">
+      <h3>2. Style du visualiseur</h3>
+      <div class="vp-row styleBtns" id="styleBtns">
+        <button data-style="thin" class="sel">Barres fines</button>
+        <button data-style="bars">Égaliseur</button>
+        <button data-style="mirror">Miroir</button>
+        <button data-style="wave">Onde</button>
+        <button data-style="bubbles">Bulles</button>
+        <button data-style="circle">Cercle</button>
+      </div>
+    </div>
+
+    <div class="vp-section">
+      <h3>3. Couleur</h3>
+      <div class="vp-row" id="colorRow">
+        <button class="swatch sel" data-color="#FFFFFF" style="background:#FFFFFF" title="Blanc"></button>
+        <button class="swatch" data-color="#E8B84B" style="background:#E8B84B" title="Or"></button>
+        <button class="swatch" data-color="#d4537e" style="background:#d4537e" title="Rose IGTV"></button>
+        <button class="swatch" data-color="#3FA45B" style="background:#3FA45B" title="Vert IGR"></button>
+        <button class="swatch" data-color="#C94F3D" style="background:#C94F3D" title="Rouge"></button>
+        <button class="swatch" data-color="#6EC1E4" style="background:#6EC1E4" title="Bleu ciel"></button>
+      </div>
+    </div>
+
+    <div class="vp-section">
+      <h3>4. Réglages</h3>
+      <div class="vp-row" style="gap:20px">
+        <label>Taille <input type="range" id="sizeRange" min="20" max="100" value="60"> <span class="val" id="sizeVal">60%</span></label>
+        <label>Sensibilité <input type="range" id="gainRange" min="50" max="250" value="120"> <span class="val" id="gainVal">120%</span></label>
+      </div>
+    </div>
+
+    <div class="vp-section">
+      <h3>5. Aperçu — glisse l'effet où tu veux sur l'image</h3>
+      <div class="previewWrap" id="previewWrap">
+        <canvas id="previewCanvas" width="1280" height="720"></canvas>
+      </div>
+      <p class="previewNote">▶ Lance la lecture du mix (lecteur audio plus haut) : le visualiseur bouge en direct et tu vérifies tout d'un coup avec le curseur audio.</p>
+    </div>
+
+    <div class="vp-section">
+      <h3>6. Résolution d'export</h3>
+      <div class="radioRow">
+        <label><input type="radio" name="resOpt" value="720" checked> 720p (rapide, léger)</label>
+        <label><input type="radio" name="resOpt" value="1080"> 1080p (qualité max)</label>
+      </div>
+    </div>
+
+    <div class="mergebar" style="margin-top:6px">
+      <button class="primary" id="exportBtn">Exporter la vidéo MP4</button>
+      <div class="progress" id="vProgressBar"><i id="vProgressFill"></i></div>
+      <div class="status" id="vStatusLine"></div>
+    </div>
+
+    <div class="videoOut" id="videoOut">
+      <video id="resultVideo" controls></video>
+      <button class="primary" id="downloadVideoBtn">Télécharger le MP4</button>
+    </div>
+  </div>
+
 </div>
 
 <audio id="previewAudio"></audio>
@@ -183,6 +294,7 @@ var decodeCtx = null;
 var previewAudio = document.getElementById('previewAudio');
 var previewTrackId = null;
 var merging = false;
+var resultBlob = null;
 
 function $(id){ return document.getElementById(id); }
 
@@ -276,7 +388,7 @@ var trackList = $('trackList');
 function renderList(){
   trackList.innerHTML = '';
   if(!tracks.length){
-    trackList.innerHTML = '<div class="empty">Les sons ajoutés apparaîtront ici. Glisse-les pour changer l\'ordre, tire les poignées dorées pour recadrer.</div>';
+    trackList.innerHTML = '<div class="empty">Les sons ajoutés apparaîtront ici. Glisse-les pour changer l\'ordre, tire les poignées dorées pour recadrer, clique sur l\'onde pour écouter à un endroit précis.</div>';
   }
   tracks.forEach(function(t, idx){
     trackList.appendChild(buildRow(t, idx));
@@ -325,6 +437,7 @@ function buildRow(t, idx){
       '<canvas></canvas>' +
       '<div class="shade left"></div><div class="shade right"></div>' +
       '<div class="handle hs"></div><div class="handle he"></div>' +
+      '<div class="playhead"></div>' +
     '</div>' +
     '<div class="t-times"><span>Début gardé : <b class="ts"></b></span><span class="tk">Gardé : <b class="td"></b></span><span>Fin gardée : <b class="te"></b></span></div>';
 
@@ -334,10 +447,10 @@ function buildRow(t, idx){
   row.querySelector('.up').onclick = function(){ move(idx, idx-1); };
   row.querySelector('.down').onclick = function(){ move(idx, idx+1); };
   row.querySelector('.del').onclick = function(){ removeTrack(t.id); };
-  row.querySelector('.play').onclick = function(){ togglePreview(t, row.querySelector('.play')); };
+  row.querySelector('.play').onclick = function(){ togglePreview(t); };
 
   setupDrag(row);
-  requestAnimationFrame(function(){ drawWave(row, t); setupHandles(row, t); refreshTrim(row, t); });
+  requestAnimationFrame(function(){ drawWave(row, t); setupHandles(row, t); setupSeek(row, t); refreshTrim(row, t); });
   return row;
 }
 
@@ -440,6 +553,7 @@ function setupHandles(row, t){
     var handle = row.querySelector('.'+cls);
     handle.addEventListener('pointerdown', function(e){
       e.preventDefault();
+      e.stopPropagation();
       handle.setPointerCapture(e.pointerId);
       function onMove(ev){
         var rect = box.getBoundingClientRect();
@@ -469,29 +583,95 @@ window.addEventListener('resize', function(){
   });
 });
 
-/* ---------- Pré-écoute de la partie gardée ---------- */
+/* ---------- Lecture : clic sur l'onde + curseur qui avance ---------- */
 
-function togglePreview(t, btn){
+var rafId = null;
+
+function rowById(id){
+  return trackList.querySelector('.track[data-id="'+id+'"]');
+}
+
+function setupSeek(row, t){
+  var box = row.querySelector('.wavebox');
+  var canvas = row.querySelector('canvas');
+  canvas.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    function seekTo(ev){
+      var rect = box.getBoundingClientRect();
+      var frac = Math.min(1, Math.max(0, (ev.clientX-rect.left)/rect.width));
+      var time = frac*t.duration;
+      time = Math.max(t.trimStart, Math.min(time, Math.max(t.trimStart, t.trimEnd-0.1)));
+      if(previewTrackId === t.id){
+        previewAudio.currentTime = time;
+        placePlayhead(row, t, time);
+      } else {
+        startPreviewAt(t, time);
+      }
+    }
+    seekTo(e);
+    function onMove(ev){ seekTo(ev); }
+    function onUp(){
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointercancel', onUp);
+    }
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+  });
+}
+
+function placePlayhead(row, t, time){
+  var ph = row.querySelector('.playhead');
+  var w = row.querySelector('.wavebox').clientWidth;
+  ph.style.display = 'block';
+  ph.style.left = (time/t.duration*w) + 'px';
+}
+
+function startPreviewAt(t, time){
+  stopPreview();
+  previewTrackId = t.id;
+  var row = rowById(t.id);
+  if(row) row.querySelector('.play').textContent = '⏸';
+  function go(){
+    previewAudio.currentTime = time;
+    previewAudio.play();
+    tickTrack();
+  }
+  if(previewAudio.src !== t.url){
+    previewAudio.src = t.url;
+    previewAudio.onloadedmetadata = go;
+  } else {
+    go();
+  }
+  previewAudio.onended = stopPreview;
+}
+
+function tickTrack(){
+  if(!previewTrackId) return;
+  var t = tracks.find(function(x){ return x.id===previewTrackId; });
+  var row = rowById(previewTrackId);
+  if(!t || !row){ stopPreview(); return; }
+  placePlayhead(row, t, previewAudio.currentTime);
+  if(previewAudio.currentTime >= t.trimEnd - 0.05){ stopPreview(); return; }
+  rafId = requestAnimationFrame(tickTrack);
+}
+
+function togglePreview(t){
   if(previewTrackId === t.id && !previewAudio.paused){
     stopPreview();
     return;
   }
-  stopPreview();
-  previewTrackId = t.id;
-  previewAudio.src = t.url;
-  previewAudio.currentTime = t.trimStart;
-  previewAudio.play();
-  btn.textContent = '⏸';
-  previewAudio.ontimeupdate = function(){
-    if(previewAudio.currentTime >= t.trimEnd - 0.05) stopPreview();
-  };
-  previewAudio.onended = stopPreview;
+  startPreviewAt(t, t.trimStart);
 }
+
 function stopPreview(){
   previewAudio.pause();
-  previewAudio.ontimeupdate = null;
+  if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
   previewTrackId = null;
   document.querySelectorAll('.track .play').forEach(function(b){ b.textContent='▶'; });
+  document.querySelectorAll('.playhead').forEach(function(p){ p.style.display='none'; });
 }
 
 /* ---------- Merge + encodage MP3 ---------- */
@@ -517,6 +697,7 @@ function mergeAll(){
   stopPreview();
   $('mergeBtn').disabled = true;
   $('resultBox').style.display = 'none';
+  $('videoPanel').style.display = 'none';
   setProgress(0);
 
   var fade = getFade();
@@ -545,8 +726,6 @@ function mergeAll(){
       return t.file.arrayBuffer().then(function(ab){
         return getCtx().decodeAudioData(ab);
       }).then(function(buf){
-        var s = Math.floor(t.trimStart*buf.sampleRate/buf.sampleRate*RATE);
-        /* décodage déjà à RATE via le contexte ; sécurité si le navigateur ignore sampleRate */
         var ratio = buf.sampleRate / RATE;
         var startS = Math.floor(t.trimStart*buf.sampleRate);
         var endS = Math.min(Math.floor(t.trimEnd*buf.sampleRate), buf.length);
@@ -554,11 +733,10 @@ function mergeAll(){
         var c1 = buf.numberOfChannels>1 ? buf.getChannelData(1) : c0;
         var L, R;
         if(Math.abs(ratio-1) < 0.001){
-          var len = endS - startS;
-          L = new Float32Array(len); R = new Float32Array(len);
+          var len0 = endS - startS;
+          L = new Float32Array(len0); R = new Float32Array(len0);
           L.set(c0.subarray(startS,endS)); R.set(c1.subarray(startS,endS));
         } else {
-          /* rééchantillonnage linéaire simple si le contexte n'est pas à 44100 */
           var outLen = Math.floor((endS-startS)/ratio);
           L = new Float32Array(outLen); R = new Float32Array(outLen);
           for(var k=0;k<outLen;k++){
@@ -570,7 +748,6 @@ function mergeAll(){
         }
         var len = L.length;
 
-        /* crossfade avec la queue du son précédent (équi-puissance, style DJ) */
         if(tailL){
           var ov = Math.min(tailL.length, len);
           for(var k2=0;k2<ov;k2++){
@@ -582,12 +759,10 @@ function mergeAll(){
           }
         }
 
-        /* fondu global optionnel au tout début du mix */
         if(i===0 && doFadeStart){
           var fs = Math.min(Math.floor(2*RATE), len);
           for(var k3=0;k3<fs;k3++){ var g=k3/fs; L[k3]*=g; R[k3]*=g; }
         }
-        /* fondu global optionnel à la toute fin du mix */
         if(i===tracks.length-1 && doFadeEnd){
           var fe = Math.min(Math.floor(3*RATE), len);
           for(var k4=0;k4<fe;k4++){ var g2=1-(k4+1)/fe; L[len-fe+k4]*=g2; R[len-fe+k4]*=g2; }
@@ -595,7 +770,6 @@ function mergeAll(){
 
         chapters.push({ time: timeCursor, name: cleanName(t.name) });
 
-        /* combien garder comme queue pour le prochain crossfade */
         var keep = 0;
         if(i < tracks.length-1 && fadeSamples > 0){
           keep = Math.min(fadeSamples, Math.floor(len/2));
@@ -660,14 +834,16 @@ function floatTo16(f, start, end){
   return out;
 }
 
-/* ---------- Résultat ---------- */
+/* ---------- Résultat mix ---------- */
 
 var resultUrl = null;
+var resultAudio = $('resultAudio');
 
 function showResult(blob, chapters){
+  resultBlob = blob;
   if(resultUrl) URL.revokeObjectURL(resultUrl);
   resultUrl = URL.createObjectURL(blob);
-  $('resultAudio').src = resultUrl;
+  resultAudio.src = resultUrl;
 
   var lines = chapters.map(function(c){
     return fmt(c.time) + ' ' + c.name;
@@ -686,26 +862,534 @@ function showResult(blob, chapters){
   };
 
   $('resultBox').style.display = 'block';
+  $('videoPanel').style.display = 'block';
+  drawPreviewFrame(zeroBands(), 0);
   $('resultBox').scrollIntoView({behavior:'smooth'});
 }
 
 $('copyBtn').onclick = function(){
   var ta = $('chaptersArea');
   ta.select();
-  var ok = false;
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(ta.value).then(function(){
       $('copyBtn').textContent = 'Copié ✔';
       setTimeout(function(){ $('copyBtn').textContent = 'Copier les timecodes'; }, 1600);
     });
   } else {
-    try{ ok = document.execCommand('copy'); }catch(e){}
-    if(ok){
-      $('copyBtn').textContent = 'Copié ✔';
-      setTimeout(function(){ $('copyBtn').textContent = 'Copier les timecodes'; }, 1600);
-    }
+    try{ document.execCommand('copy'); }catch(e){}
+    $('copyBtn').textContent = 'Copié ✔';
+    setTimeout(function(){ $('copyBtn').textContent = 'Copier les timecodes'; }, 1600);
   }
 };
+
+/* ==================================================================
+   PANNEAU VIDÉO MP4
+   ================================================================== */
+
+var BANDS = 48;
+var vizCfg = { style:'thin', color:'#FFFFFF', size:60, gain:120, x:0.5, y:0.82 };
+var userImg = null;
+var previewCanvas = $('previewCanvas');
+var pctx = previewCanvas.getContext('2d');
+var liveBands = zeroBands();
+
+function zeroBands(){ return new Float32Array(BANDS); }
+
+/* --- Image upload --- */
+var imgZone = $('imgZone'), imgInput = $('imgInput');
+imgZone.addEventListener('click', function(){ imgInput.click(); });
+imgZone.addEventListener('dragover', function(e){ e.preventDefault(); });
+imgZone.addEventListener('drop', function(e){
+  e.preventDefault();
+  if(e.dataTransfer && e.dataTransfer.files.length) loadImage(e.dataTransfer.files[0]);
+});
+imgInput.addEventListener('change', function(){
+  if(imgInput.files.length) loadImage(imgInput.files[0]);
+});
+function loadImage(file){
+  if(!/image/i.test(file.type)) return;
+  var img = new Image();
+  img.onload = function(){
+    userImg = img;
+    imgZone.classList.add('ok');
+    imgZone.firstChild.textContent = '✔ ' + file.name + ' — clique pour changer';
+    drawPreviewFrame(liveBands, perfNow());
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+/* --- Style / couleur / réglages --- */
+$('styleBtns').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if(!b) return;
+  vizCfg.style = b.dataset.style;
+  $('styleBtns').querySelectorAll('button').forEach(function(x){ x.classList.remove('sel'); });
+  b.classList.add('sel');
+});
+$('colorRow').addEventListener('click', function(e){
+  var b = e.target.closest('.swatch'); if(!b) return;
+  vizCfg.color = b.dataset.color;
+  $('colorRow').querySelectorAll('.swatch').forEach(function(x){ x.classList.remove('sel'); });
+  b.classList.add('sel');
+});
+$('sizeRange').addEventListener('input', function(){
+  vizCfg.size = parseInt(this.value,10);
+  $('sizeVal').textContent = this.value + '%';
+});
+$('gainRange').addEventListener('input', function(){
+  vizCfg.gain = parseInt(this.value,10);
+  $('gainVal').textContent = this.value + '%';
+});
+
+/* --- Positionnement par glisser sur l'aperçu --- */
+(function(){
+  var wrap = $('previewWrap');
+  previewCanvas.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    previewCanvas.setPointerCapture(e.pointerId);
+    function place(ev){
+      var rect = wrap.getBoundingClientRect();
+      vizCfg.x = Math.min(0.97, Math.max(0.03, (ev.clientX-rect.left)/rect.width));
+      vizCfg.y = Math.min(0.97, Math.max(0.03, (ev.clientY-rect.top)/rect.height));
+    }
+    place(e);
+    function onMove(ev){ place(ev); }
+    function onUp(){
+      previewCanvas.removeEventListener('pointermove', onMove);
+      previewCanvas.removeEventListener('pointerup', onUp);
+      previewCanvas.removeEventListener('pointercancel', onUp);
+    }
+    previewCanvas.addEventListener('pointermove', onMove);
+    previewCanvas.addEventListener('pointerup', onUp);
+    previewCanvas.addEventListener('pointercancel', onUp);
+  });
+})();
+
+/* --- Analyse live du lecteur audio du mix --- */
+var liveCtx = null, analyser = null, freqData = null;
+resultAudio.addEventListener('play', function(){
+  if(!liveCtx){
+    var AC = window.AudioContext || window.webkitAudioContext;
+    liveCtx = new AC();
+    var srcNode = liveCtx.createMediaElementSource(resultAudio);
+    analyser = liveCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.72;
+    srcNode.connect(analyser);
+    analyser.connect(liveCtx.destination);
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+  }
+  liveCtx.resume();
+});
+
+function bandsFromAnalyser(){
+  if(!analyser) return liveBands;
+  analyser.getByteFrequencyData(freqData);
+  var sr = liveCtx.sampleRate;
+  var binHz = sr/2048;
+  var fMin=40, fMax=14000;
+  var g = vizCfg.gain/100;
+  for(var b=0;b<BANDS;b++){
+    var f0=fMin*Math.pow(fMax/fMin,b/BANDS), f1=fMin*Math.pow(fMax/fMin,(b+1)/BANDS);
+    var b0=Math.max(1,Math.floor(f0/binHz)), b1=Math.max(b0+1,Math.ceil(f1/binHz));
+    var m=0;
+    for(var k=b0;k<b1 && k<freqData.length;k++){ if(freqData[k]>m) m=freqData[k]; }
+    var v = Math.min(1, Math.pow(m/255, 1.15)*g);
+    var p = liveBands[b];
+    liveBands[b] = v>p ? p+(v-p)*0.6 : p*0.82;
+  }
+  return liveBands;
+}
+
+function perfNow(){ return performance.now()/1000; }
+
+/* Boucle d'aperçu live */
+(function loop(){
+  if($('videoPanel').style.display === 'block'){
+    var playing = !resultAudio.paused && !resultAudio.ended;
+    if(playing) bandsFromAnalyser();
+    else for(var b=0;b<BANDS;b++) liveBands[b]*=0.9;
+    drawPreviewFrame(liveBands, perfNow());
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* --- Dessin d'une frame (aperçu ET export) --- */
+function drawFrame(ctx, W, H, bands, tSec){
+  if(userImg){
+    var ir = userImg.width/userImg.height, r = W/H, sw, sh, sx, sy;
+    if(ir > r){ sh = userImg.height; sw = sh*r; sx = (userImg.width-sw)/2; sy = 0; }
+    else { sw = userImg.width; sh = sw/r; sx = 0; sy = (userImg.height-sh)/2; }
+    ctx.drawImage(userImg, sx, sy, sw, sh, 0, 0, W, H);
+  } else {
+    var grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'#12211A'); grad.addColorStop(1,'#060A08');
+    ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = 'rgba(237,233,220,.35)';
+    ctx.font = Math.round(H*0.045) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Ajoute ton image 16:9 ci-dessus', W/2, H/2);
+  }
+  drawViz(ctx, W, H, bands, tSec);
+}
+
+function drawPreviewFrame(bands, tSec){
+  drawFrame(pctx, previewCanvas.width, previewCanvas.height, bands, tSec);
+}
+
+function rr(ctx, x, y, w, h, r){
+  if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+  else ctx.fillRect(x, y, w, h);
+}
+
+function drawViz(ctx, W, H, bands, tSec){
+  var color = vizCfg.color;
+  var vw = vizCfg.size/100*W;
+  var cx = vizCfg.x*W, cy = vizCfg.y*H;
+  var vh = vw*0.24;
+  var n = BANDS;
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = Math.max(6, W*0.007);
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+
+  if(vizCfg.style === 'bars'){
+    var bw = vw/n;
+    for(var i=0;i<n;i++){
+      var h = Math.max(W*0.003, bands[i]*vh);
+      rr(ctx, cx-vw/2+i*bw, cy+vh/2-h, bw*0.62, h, bw*0.28);
+    }
+  }
+  else if(vizCfg.style === 'thin'){
+    var bw2 = vw/n;
+    for(var i2=0;i2<n;i2++){
+      var h2 = Math.max(W*0.004, bands[i2]*vh);
+      rr(ctx, cx-vw/2+i2*bw2, cy-h2/2, bw2*0.35, h2, bw2*0.17);
+    }
+  }
+  else if(vizCfg.style === 'mirror'){
+    var bw3 = vw/n;
+    for(var i3=0;i3<n;i3++){
+      var h3 = Math.max(W*0.003, bands[i3]*vh*0.65);
+      rr(ctx, cx-vw/2+i3*bw3, cy-h3, bw3*0.55, h3*2, bw3*0.25);
+    }
+  }
+  else if(vizCfg.style === 'wave'){
+    ctx.lineWidth = Math.max(2, W*0.0028);
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for(var i4=0;i4<n;i4++){
+      var wx = cx-vw/2 + i4/(n-1)*vw;
+      var wy = cy - bands[i4]*vh*0.75;
+      if(i4===0) ctx.moveTo(wx,wy); else ctx.lineTo(wx,wy);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    for(var i5=0;i5<n;i5++){
+      var wx2 = cx-vw/2 + i5/(n-1)*vw;
+      var wy2 = cy + bands[i5]*vh*0.55;
+      if(i5===0) ctx.moveTo(wx2,wy2); else ctx.lineTo(wx2,wy2);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  else if(vizCfg.style === 'bubbles'){
+    var nb = 22;
+    var step = vw/nb;
+    for(var i6=0;i6<nb;i6++){
+      var v = bands[Math.floor(i6*n/nb)];
+      var bx = cx-vw/2 + step*(i6+0.5);
+      var by = cy + Math.sin(tSec*2.2 + i6*0.75)*vh*0.18;
+      var rad = Math.max(W*0.0025, v*vh*0.34 + W*0.0018);
+      ctx.globalAlpha = 0.5 + 0.5*v;
+      ctx.beginPath();
+      ctx.arc(bx, by, rad, 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  else if(vizCfg.style === 'circle'){
+    var cr = vw*0.16;
+    ctx.lineWidth = Math.max(2, W*0.0028);
+    ctx.beginPath();
+    ctx.arc(cx, cy, cr, 0, 6.2832);
+    ctx.stroke();
+    for(var i7=0;i7<n;i7++){
+      var a = i7/n*6.2832 - 1.5708 + tSec*0.25;
+      var lenr = cr*0.12 + bands[i7]*cr*0.85;
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(a)*(cr+W*0.003), cy+Math.sin(a)*(cr+W*0.003));
+      ctx.lineTo(cx+Math.cos(a)*(cr+W*0.003+lenr), cy+Math.sin(a)*(cr+W*0.003+lenr));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+/* ---------- FFT hors-ligne pour l'export ---------- */
+
+function fftRadix2(re, im){
+  var nn = re.length;
+  for(var i=1,j=0;i<nn;i++){
+    var bit = nn>>1;
+    for(; j & bit; bit >>= 1){ j ^= bit; }
+    j |= bit;
+    if(i<j){
+      var tr=re[i]; re[i]=re[j]; re[j]=tr;
+      var ti=im[i]; im[i]=im[j]; im[j]=ti;
+    }
+  }
+  for(var len=2;len<=nn;len<<=1){
+    var ang = -6.283185307179586/len;
+    var wr = Math.cos(ang), wi = Math.sin(ang);
+    for(var s=0;s<nn;s+=len){
+      var cwr=1, cwi=0;
+      var half = len>>1;
+      for(var k=0;k<half;k++){
+        var ur=re[s+k], ui=im[s+k];
+        var xr=re[s+k+half], xi=im[s+k+half];
+        var vr = xr*cwr - xi*cwi;
+        var vi = xr*cwi + xi*cwr;
+        re[s+k]=ur+vr; im[s+k]=ui+vi;
+        re[s+k+half]=ur-vr; im[s+k+half]=ui-vi;
+        var nwr = cwr*wr - cwi*wi;
+        cwi = cwr*wi + cwi*wr;
+        cwr = nwr;
+      }
+    }
+  }
+}
+
+var fftRe = new Float32Array(2048), fftIm = new Float32Array(2048), hann = null;
+function ensureHann(){
+  if(hann) return;
+  hann = new Float32Array(2048);
+  for(var i=0;i<2048;i++) hann[i] = 0.5 - 0.5*Math.cos(6.283185307179586*i/2047);
+}
+
+function bandsOffline(mono, centerSample, prev){
+  ensureHann();
+  var N = 2048;
+  var start = Math.max(0, Math.min(mono.length-N, centerSample-(N>>1)));
+  for(var i=0;i<N;i++){
+    fftRe[i] = (mono[start+i]||0)*hann[i];
+    fftIm[i] = 0;
+  }
+  fftRadix2(fftRe, fftIm);
+  var out = prev || zeroBands();
+  var binHz = RATE/N;
+  var fMin=40, fMax=14000;
+  var g = vizCfg.gain/100;
+  for(var b=0;b<BANDS;b++){
+    var f0=fMin*Math.pow(fMax/fMin,b/BANDS), f1=fMin*Math.pow(fMax/fMin,(b+1)/BANDS);
+    var b0=Math.max(1,Math.floor(f0/binHz)), b1=Math.max(b0+1,Math.ceil(f1/binHz));
+    var m=0;
+    for(var k=b0;k<b1 && k<N/2;k++){
+      var mag = Math.sqrt(fftRe[k]*fftRe[k]+fftIm[k]*fftIm[k]);
+      if(mag>m) m=mag;
+    }
+    var v = Math.min(1, Math.pow(m/70, 0.62)*g);
+    var p = out[b];
+    out[b] = v>p ? p+(v-p)*0.55 : p*0.8;
+  }
+  return out;
+}
+
+/* ---------- Export MP4 ---------- */
+
+var exporting = false;
+var videoUrl = null;
+
+function vStatus(t){ $('vStatusLine').textContent = t; }
+function vProgress(p){
+  $('vProgressBar').style.display = 'block';
+  $('vProgressFill').style.width = Math.min(100, Math.round(p*100)) + '%';
+}
+
+$('exportBtn').onclick = function(){
+  if(exporting) return;
+  if(!resultBlob){ vStatus('Fais d\'abord ton mix audio.'); return; }
+  exportMp4().catch(function(err){
+    console.error(err);
+    vStatus('Erreur export : ' + (err && err.message ? err.message : err));
+    exporting = false;
+    $('exportBtn').disabled = false;
+  });
+};
+
+function exportMp4(){
+  if(typeof VideoEncoder === 'undefined' || typeof AudioEncoder === 'undefined'){
+    return Promise.reject(new Error('Ton navigateur ne supporte pas l\'export vidéo (utilise Chrome ou Edge récent)'));
+  }
+  if(typeof Mp4Muxer === 'undefined'){
+    return Promise.reject(new Error('Module MP4 non chargé (vérifie ta connexion et recharge la page)'));
+  }
+
+  exporting = true;
+  $('exportBtn').disabled = true;
+  $('videoOut').style.display = 'none';
+  vProgress(0);
+  vStatus('Préparation de l\'audio…');
+
+  var is1080 = document.querySelector('input[name="resOpt"]:checked').value === '1080';
+  var W = is1080 ? 1920 : 1280;
+  var H = is1080 ? 1080 : 720;
+  var FPS = 30;
+
+  var expCanvas = document.createElement('canvas');
+  expCanvas.width = W; expCanvas.height = H;
+  var ectx = expCanvas.getContext('2d');
+
+  var audioCodec = null;
+
+  return resultBlob.arrayBuffer().then(function(ab){
+    return getCtx().decodeAudioData(ab);
+  }).then(function(abuf){
+    var chL = abuf.getChannelData(0);
+    var chR = abuf.numberOfChannels>1 ? abuf.getChannelData(1) : chL;
+    var total = abuf.length;
+    var mono = new Float32Array(total);
+    for(var i=0;i<total;i++) mono[i] = (chL[i]+chR[i])*0.5;
+    var duration = total/abuf.sampleRate;
+
+    var aacCfg = { codec:'mp4a.40.2', sampleRate:abuf.sampleRate, numberOfChannels:2, bitrate:192000 };
+    var opusCfg = { codec:'opus', sampleRate:abuf.sampleRate, numberOfChannels:2, bitrate:192000 };
+
+    return AudioEncoder.isConfigSupported(aacCfg).then(function(res){
+      if(res && res.supported){ audioCodec = 'aac'; return aacCfg; }
+      return AudioEncoder.isConfigSupported(opusCfg).then(function(r2){
+        if(r2 && r2.supported){ audioCodec = 'opus'; return opusCfg; }
+        throw new Error('Aucun encodeur audio disponible dans ce navigateur');
+      });
+    }).then(function(aCfg){
+      var vCodec = is1080 ? 'avc1.640028' : 'avc1.42001f';
+      var vCfg = { codec:vCodec, width:W, height:H, bitrate: is1080 ? 8000000 : 4500000, framerate:FPS };
+      return VideoEncoder.isConfigSupported(vCfg).then(function(vres){
+        if(!(vres && vres.supported)){
+          vCfg.codec = 'avc1.4d0028';
+          return VideoEncoder.isConfigSupported(vCfg).then(function(v2){
+            if(!(v2 && v2.supported)) throw new Error('Encodeur vidéo H.264 non disponible');
+            return {aCfg:aCfg, vCfg:vCfg};
+          });
+        }
+        return {aCfg:aCfg, vCfg:vCfg};
+      });
+    }).then(function(cfgs){
+      var muxer = new Mp4Muxer.Muxer({
+        target: new Mp4Muxer.ArrayBufferTarget(),
+        video: { codec:'avc', width:W, height:H },
+        audio: { codec: audioCodec === 'aac' ? 'aac' : 'opus', numberOfChannels:2, sampleRate:abuf.sampleRate },
+        fastStart: 'in-memory'
+      });
+
+      var vErr = null;
+      var videoEncoder = new VideoEncoder({
+        output: function(chunk, meta){ muxer.addVideoChunk(chunk, meta); },
+        error: function(e){ vErr = e; }
+      });
+      videoEncoder.configure(cfgs.vCfg);
+
+      var audioEncoder = new AudioEncoder({
+        output: function(chunk, meta){ muxer.addAudioChunk(chunk, meta); },
+        error: function(e){ vErr = e; }
+      });
+      audioEncoder.configure(cfgs.aCfg);
+
+      /* --- Encodage audio --- */
+      vStatus('Encodage de l\'audio…');
+      var CH = 4096;
+      var offset = 0;
+      function pumpAudio(){
+        return new Promise(function(resolve){
+          function step(){
+            var loops = 0;
+            while(offset < total && loops < 30){
+              var nfr = Math.min(CH, total-offset);
+              var planar = new Float32Array(nfr*2);
+              planar.set(chL.subarray(offset, offset+nfr), 0);
+              planar.set(chR.subarray(offset, offset+nfr), nfr);
+              var ad = new AudioData({
+                format:'f32-planar',
+                sampleRate: abuf.sampleRate,
+                numberOfFrames: nfr,
+                numberOfChannels: 2,
+                timestamp: Math.round(offset/abuf.sampleRate*1e6),
+                data: planar
+              });
+              audioEncoder.encode(ad);
+              ad.close();
+              offset += nfr;
+              loops++;
+            }
+            if(offset < total) setTimeout(step, 0);
+            else resolve();
+          }
+          step();
+        });
+      }
+
+      return pumpAudio().then(function(){
+        return audioEncoder.flush();
+      }).then(function(){
+        /* --- Encodage vidéo --- */
+        var totalFrames = Math.ceil(duration*FPS);
+        var expBands = zeroBands();
+        var f = 0;
+        vStatus('Création de la vidéo… 0%');
+
+        return new Promise(function(resolve, reject){
+          function frameStep(){
+            if(vErr){ reject(vErr); return; }
+            var batch = 0;
+            while(f < totalFrames && batch < 5){
+              if(videoEncoder.encodeQueueSize > 10) break;
+              var tSec = f/FPS;
+              expBands = bandsOffline(mono, Math.floor(tSec*abuf.sampleRate), expBands);
+              drawFrame(ectx, W, H, expBands, tSec);
+              var vf = new VideoFrame(expCanvas, { timestamp: Math.round(tSec*1e6), duration: Math.round(1e6/FPS) });
+              videoEncoder.encode(vf, { keyFrame: f % (FPS*2) === 0 });
+              vf.close();
+              f++;
+              batch++;
+            }
+            var p = f/totalFrames;
+            vProgress(p*0.97);
+            vStatus('Création de la vidéo… ' + Math.round(p*100) + '%');
+            if(f < totalFrames) setTimeout(frameStep, 0);
+            else resolve();
+          }
+          frameStep();
+        }).then(function(){
+          vStatus('Finalisation…');
+          return videoEncoder.flush();
+        }).then(function(){
+          muxer.finalize();
+          var mp4Blob = new Blob([muxer.target.buffer], {type:'video/mp4'});
+          if(videoUrl) URL.revokeObjectURL(videoUrl);
+          videoUrl = URL.createObjectURL(mp4Blob);
+          $('resultVideo').src = videoUrl;
+          $('downloadVideoBtn').onclick = function(){
+            var a = document.createElement('a');
+            var d = new Date();
+            var stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+            a.href = videoUrl;
+            a.download = 'VIDEO_' + stamp + '_' + (is1080?'1080p':'720p') + '.mp4';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          };
+          $('videoOut').style.display = 'block';
+          vProgress(1);
+          vStatus('Vidéo prête ✔' + (audioCodec==='opus' ? ' (audio Opus — accepté par YouTube)' : ''));
+          exporting = false;
+          $('exportBtn').disabled = false;
+          $('videoOut').scrollIntoView({behavior:'smooth'});
+        });
+      });
+    });
+  });
+}
 
 })();
 </script>
