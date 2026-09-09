@@ -174,12 +174,20 @@
     <input type="file" id="fileInput" accept="audio/*" multiple>
   </div>
 
+  <div style="text-align:center;margin:14px 0 4px;color:var(--muted);font-size:13.5px">— ou —</div>
+  <div class="dropzone" id="readyZone" style="padding:18px 20px">
+    <strong>J'ai déjà un mix prêt</strong>
+    <em>Clique ici pour choisir un fichier audio déjà mixé et aller direct à la vidéo</em>
+    <input type="file" id="readyInput" accept="audio/*">
+  </div>
+
   <div class="toolbar">
     <span class="info" id="infoLine">Aucun fichier chargé</span>
     <button id="clearBtn" class="danger">Tout effacer</button>
   </div>
 
   <div id="trackList"><div class="empty">Les sons ajoutés apparaîtront ici. Glisse-les pour changer l'ordre, tire les poignées dorées pour recadrer, clique sur l'onde pour écouter à un endroit précis.</div></div>
+  <div id="skipMixNote" style="display:none;color:var(--muted);font-size:13.5px;margin:-8px 0 10px"></div>
 
   <div class="settings">
     <label>Crossfade
@@ -1620,6 +1628,28 @@ function mergeAll(){
 var resultUrl = null;
 var resultAudio = $('resultAudio');
 
+/* Raccourci : uploader un mix déjà prêt et sauter directement à la création vidéo */
+var readyZone = $('readyZone'), readyInput = $('readyInput');
+readyZone.addEventListener('click', function(){ readyInput.click(); });
+readyZone.addEventListener('dragover', function(e){ e.preventDefault(); readyZone.classList.add('over'); });
+readyZone.addEventListener('dragleave', function(){ readyZone.classList.remove('over'); });
+readyZone.addEventListener('drop', function(e){
+  e.preventDefault(); readyZone.classList.remove('over');
+  if(e.dataTransfer && e.dataTransfer.files.length) useReadyMix(e.dataTransfer.files[0]);
+});
+readyInput.addEventListener('change', function(){
+  if(readyInput.files.length) useReadyMix(readyInput.files[0]);
+  readyInput.value = '';
+});
+
+function useReadyMix(file){
+  var isMp3 = /\.mp3$/i.test(file.name) || file.type === 'audio/mpeg';
+  resultFormat = isMp3 ? 'mp3' : 'm4a';
+  $('skipMixNote').style.display = 'block';
+  $('skipMixNote').textContent = '🎧 Mix importé : ' + file.name + ' — étape de mixage sautée, direct à la vidéo.';
+  showResult(file, []);
+}
+
 function showResult(blob, chapters){
   resultBlob = blob;
   if(resultUrl) URL.revokeObjectURL(resultUrl);
@@ -1630,6 +1660,9 @@ function showResult(blob, chapters){
     return fmt(c.time) + ' ' + c.name;
   });
   $('chaptersArea').value = lines.join('\n');
+  if(!chapters.length){
+    $('chaptersArea').value = '(pas de timecodes — mix importé directement, sans passer par le mixeur)';
+  }
 
   $('downloadBtn').onclick = function(){
     var a = document.createElement('a');
